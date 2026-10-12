@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { AgentProvider } from '../shared/agentProvider';
+
+/** The Librarian's desk (see main/desk.ts). */
+export type DeskKind = 'pdf' | 'text' | 'research' | 'image' | 'other';
+export interface DeskFileInfo { id: string; name: string; kind: DeskKind; size: number; addedAt: number; agent: string }
+export interface DeskSessionInfo { id: string; name: string; createdAt: number; files: number; bytes: number; counts: Record<DeskKind, number> }
 import type { HireManifest } from '../shared/hire';
 export type { HireManifest } from '../shared/hire';
 import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
@@ -873,7 +878,7 @@ const api = {
   classroomHistory: (agentId: string): Promise<Array<{
     id: string; role: 'user' | 'agent'; text: string; mood?: string; sources?: string[]; ts: number;
   }>> => ipcRenderer.invoke('classroom:history', agentId),
-  classroomSend: (a: { agentId: string; cast: string; name: string; text: string; useNotes?: boolean; files?: Array<{ path: string; name: string }> }): Promise<{
+  classroomSend: (a: { agentId: string; cast: string; name: string; text: string; useNotes?: boolean; books?: string[]; files?: Array<{ path: string; name: string }> }): Promise<{
     ok: boolean; error?: string;
     user?: { id: string; role: 'user'; text: string; ts: number };
     agent?: { id: string; role: 'agent'; text: string; mood?: string; sources?: string[]; ts: number };
@@ -971,6 +976,28 @@ const api = {
   // ─── Librarian file desk (@convert / @compress — local) ──────────────────
   fileToolsRun: (payload: { text: string; files: Array<{ path: string; name: string }> }): Promise<import('../shared/fileTools').FileToolResult> =>
     ipcRenderer.invoke('fileTools:run', payload),
+  classroomCompose: (p: { cast: string; name: string; text: string; raw?: boolean; useNotes?: boolean; books?: string[]; first?: boolean; files?: Array<{ path: string; name: string }> }): Promise<{ ok: boolean; error?: string; instruction?: string }> =>
+    ipcRenderer.invoke('classroom:compose', p),
+  classroomPlan: (p: { task: string; roster: string[] }): Promise<{ ok: boolean; error?: string; steps?: Array<{ to: string; task: string }> }> =>
+    ipcRenderer.invoke('classroom:plan', p),
+  voiceStatus: (): Promise<{ hasKey: boolean; auto: boolean; voices: Record<string, string>; defaults: Record<string, string>; encrypted: boolean }> => ipcRenderer.invoke('voice:status'),
+  voiceSetKey: (key: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('voice:setKey', key),
+  voiceSetAuto: (on: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke('voice:setAuto', on),
+  voiceSetVoice: (cast: string, id: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('voice:setVoice', cast, id),
+  voiceSpeak: (p: { text: string; cast: string }): Promise<{ ok: boolean; error?: string; audio?: string }> => ipcRenderer.invoke('voice:speak', p),
+  cheatSheetRun: (payload: { text: string }): Promise<import('../shared/fileTools').FileToolResult> =>
+    ipcRenderer.invoke('cheatsheet:run', payload),
+  deskSessions: (): Promise<{ current: string; sessions: DeskSessionInfo[] }> => ipcRenderer.invoke('desk:sessions'),
+  deskNew: (name?: string): Promise<{ id: string; name: string; createdAt: number }> => ipcRenderer.invoke('desk:new', name),
+  deskSelect: (id: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:select', id),
+  deskRename: (id: string, name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:rename', id, name),
+  deskDelete: (id: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:delete', id),
+  deskClear: (id: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:clear', id),
+  deskList: (id: string): Promise<DeskFileInfo[]> => ipcRenderer.invoke('desk:list', id),
+  deskSaveText: (p: { name: string; text: string; kind: 'text' | 'research'; agent: string }): Promise<{ ok: boolean; error?: string; file?: DeskFileInfo }> => ipcRenderer.invoke('desk:saveText', p),
+  deskRemoveFile: (id: string, fileId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:removeFile', id, fileId),
+  deskOpen: (id: string, fileId: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('desk:open', id, fileId),
+  deskReveal: (id: string, fileId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('desk:reveal', id, fileId),
   handwrittenRun: (payload: { text: string; files: Array<{ path: string; name: string }> }): Promise<import('../shared/fileTools').FileToolResult> =>
     ipcRenderer.invoke('handwritten:run', payload),
   /** Bytes of an image THIS window attached, for a thumbnail (grant-checked in main). */

@@ -13,6 +13,7 @@ import { hexToNumber, DEFAULT_CHARACTER } from './cast';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
+import { enterDesk, registerFloorPan } from '@/components/classroom/deskBus';
 import {
   installContextLossRecovery, planInitFailure, DEFAULT_MAX_INIT_RETRIES
 } from './glRecovery';
@@ -1411,7 +1412,12 @@ export function OfficeFloor() {
             seatDirection: facingForSeat(seatTile),
             spawnTile: entrance, // walk in from the office door
             glowColor: hexNum(colors.accent[liveAgent.accent]) ?? hexToNumber(member.shirt),
-            onClick: (id) => useStore.getState().select(id),
+            onClick: (id) => {
+              const st = useStore.getState();
+              st.select(id);
+              // The Librarian: fly the camera in on her, then her desk opens.
+              if (st.agents.find((a) => a.id === id)?.character === 'librarian') enterDesk(id);
+            },
           });
           character.show(charLayer);
           const rt: Runtime = { character, seatIndex, waitTile, charName };
@@ -1621,6 +1627,15 @@ export function OfficeFloor() {
         }
       });
       (app as any).__unsub = unsubscribe;
+      // Lets the desk fly this camera in on a character (and back out with null).
+      registerFloorPan((id) => {
+        if (!id) { camera.fitToScreen(); return true; }
+        const rt = runtimes.get(id);
+        if (!rt) return false;
+        const p = rt.character.getPixelPosition();
+        camera.focusOn(p.x, p.y, 3.4);
+        return true;
+      });
 
       // Fly an envelope from a sender's desk to each recipient when the hive
       // routes a message. Endpoints are snapshotted at spawn, so the paper flies
@@ -1782,6 +1797,7 @@ export function OfficeFloor() {
         (a as any).__glRecovery?.();
         (a as any).__resize?.disconnect?.();
         try { (a as any).__unsub?.(); } catch { /* noop */ }
+        registerFloorPan(null);
         try { (a as any).__offMessage?.(); } catch { /* noop */ }
         try { clearInterval((a as any).__taskBoardPoll); } catch { /* noop */ }
         safeDestroy(a);

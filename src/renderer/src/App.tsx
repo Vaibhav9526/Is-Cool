@@ -24,6 +24,7 @@ import { useAppTheme, toggleAppTheme, useAppLook, setAppLook, APP_LOOKS, type Ap
 import { MailPanel } from '@/components/MailPanel';
 import { ClassroomSidePanel } from '@/components/classroom/ClassroomSidePanel';
 import { ClassroomFocus } from '@/components/classroom/ClassroomFocus';
+import { DeskOverlay } from '@/components/classroom/DeskOverlay';
 import { OfficeFocus } from '@/components/classroom/OfficeFocus';
 import { isSchoolCast } from '@/components/classroom/art';
 import { SettingsModal, type Section as SettingsSection } from '@/components/SettingsModal';
@@ -634,6 +635,7 @@ export function App() {
       })()}
       {ideOpen && <IdePanel />}
       <TaskDetailOverlay />
+      <DeskOverlay />
     </div>
     </OfficeThemeSwitchProvider>
   );

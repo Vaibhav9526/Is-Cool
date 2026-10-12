@@ -222,7 +222,7 @@ export async function sendChat(opts: {
   const parsed = parseReply(res.text, persona.moods);
   const agent: ChatMessage = {
     id: newId(), role: 'agent', text: parsed.reply, mood: parsed.mood, ts: at() + 1,
-    ...(opts.notes?.length ? { sources: [...new Set(opts.notes.map((n) => n.source))] } : {}),
+    ...(opts.notes?.some((n) => n.source !== 'Library index') ? { sources: [...new Set(opts.notes.map((n) => n.source).filter((s) => s !== 'Library index'))] } : {}),
   };
   opts.store.append(opts.agentId, user, agent);
   return { ok: true, user, agent };

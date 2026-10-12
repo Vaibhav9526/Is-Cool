@@ -105,8 +105,14 @@ const STOP = new Set(('the a an and or of to in on at is are was were be been it
   + 'what which who whom how why when where do does did can could would should i me my you your we our they them their '
   + 'about tell explain please give show notes note memory').split(' '));
 
+/** Light suffix stripping so "photosynthetic" finds "photosynthesis" and "equations" finds "equation". */
+function stem(t: string): string {
+  if (t.length <= 4 || !/^[a-z]+$/.test(t)) return t;
+  return t.replace(/(ations?|ition|ings?|ness|ment|ical|ally|ies|ive|ous|ed|es|ly|al|ic|s)$/, (m) => (m === 'ies' ? 'y' : ''));
+}
+
 export function tokenize(s: string): string[] {
-  return (s.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []).filter((t) => !STOP.has(t));
+  return (s.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []).filter((t) => !STOP.has(t)).map(stem);
 }
 
 export function rank(chunks: Array<{ source: string; text: string }>, question: string, k = 5): Hit[] {
@@ -186,8 +192,28 @@ export class Library {
     return true;
   }
 
-  search(question: string, k = 5): Hit[] {
-    const chunks = this.load().flatMap((d) => d.parts.map((text) => ({ source: d.name, text })));
-    return rank(chunks, question, k);
+  /** `only` limits the search to books with those names (file name or title, any case). */
+  search(question: string, k = 5, only?: readonly string[]): Hit[] {
+    const norm = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[\s_-]+/g, ' ').trim();
+    const want = new Set((only ?? []).map(norm));
+    const docs = this.load().filter((d) => !want.size || want.has(norm(d.name)));
+    if (!docs.length) return [];
+    const chunks = docs.flatMap((d) => d.parts.map((text) => ({ source: d.name, text })));
+    const out: Hit[] = rank(chunks, question, k);
+    // A book named in the question always contributes its opening, even when the words
+    // asked about are phrased differently from the text (e.g. "summarise my physics book").
+    const q = new Set(tokenize(question));
+    for (const d of docs) {
+      if (out.some((h) => h.source === d.name)) continue;
+      if (!tokenize(d.name.replace(/\.[a-z0-9]+$/i, '')).some((t) => q.has(t))) continue;
+      for (const text of d.parts.slice(0, 2)) out.push({ source: d.name, text, score: 0 });
+    }
+    // Nothing matched at all: hand over the opening of the newest books instead of nothing,
+    // so the answer can at least describe what the library holds.
+    if (!out.length) for (const d of docs.slice(0, 3)) out.push({ source: `${d.name} (opening)`, text: d.parts[0] ?? '', score: 0 });
+    return out.slice(0, k + 2);
   }
+
+  /** Titles on the shelf — lets the model say what exists even when nothing matched. */
+  titles(): string[] { return this.load().map((d) => d.name); }
 }

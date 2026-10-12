@@ -69,13 +69,15 @@ import * as integrations from './integrations';
 import { createTeachingService } from './teaching';
 import { runFileTool } from './fileTools';
 import { runHandwritten } from './handwritten';
+import { runCheatSheet } from './cheatSheet';
+import { parseCheatSheetRequest } from '../shared/cheatsheet';
 import { runClaudeOnce } from './llm';
 import { parseHandwrittenRequest } from '../shared/handwritten';
 import { readChatLines, transcriptFileFor } from './officeChat';
 import { parseFileToolRequest } from '../shared/fileTools';
 import { registerGmailIpc } from './gmailAuth';
 import { registerMailIpc } from './mailIpc';
-import { registerClassroomIpc } from './classroomIpc';
+import { registerClassroomIpc, deskAddOutputs } from './classroomIpc';
 import { createTeachingAttachScript, createTeachingBrandingScript, createTeachingChromeScript, isBrandableTeachingUrl } from './teachingBranding';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
@@ -3928,7 +3930,9 @@ ipcMain.handle('fileTools:run', async (evt, payload: unknown) => {
         return { ok: false as const, error: `"${f.name}" isn't authorized for this window — re-attach it and try again.`, outputs: [] };
       }
     }
-    return await runFileTool(req, fileToolsDir());
+    const done = await runFileTool(req, fileToolsDir());
+    deskAddOutputs(done, 'Librarian');
+    return done;
   } catch (err) {
     return { ok: false as const, error: err instanceof Error ? err.message : String(err), outputs: [] };
   }
@@ -3983,7 +3987,22 @@ ipcMain.handle('handwritten:run', async (evt, payload: unknown) => {
         return { ok: false as const, error: `"${f.name}" isn't authorized for this window — re-attach it and try again.`, outputs: [] };
       }
     }
-    return await runHandwritten(req, fileToolsDir(), { llm: runClaudeOnce, renderPdf: renderHandwrittenPdf });
+    const done = await runHandwritten(req, fileToolsDir(), { llm: runClaudeOnce, renderPdf: renderHandwrittenPdf });
+    deskAddOutputs(done, 'Class');
+    return done;
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : String(err), outputs: [] };
+  }
+});
+// ─── IPC: @cheat-sheet (Smart Guy: one JEE chapter → one-page formulas + notes PDF) ───
+ipcMain.handle('cheatsheet:run', async (_evt, payload: unknown) => {
+  try {
+    const p = (payload ?? {}) as { text?: unknown };
+    const req = parseCheatSheetRequest(String(p.text ?? ''));
+    if (!req) return { ok: false as const, error: 'No @cheat-sheet request found.', outputs: [] };
+    const done = await runCheatSheet(req, fileToolsDir(), { llm: (prompt, ms) => runClaudeOnce(prompt, ms), renderPdf: renderHandwrittenPdf });
+    deskAddOutputs(done, 'Smart Guy');
+    return done;
   } catch (err) {
     return { ok: false as const, error: err instanceof Error ? err.message : String(err), outputs: [] };
   }

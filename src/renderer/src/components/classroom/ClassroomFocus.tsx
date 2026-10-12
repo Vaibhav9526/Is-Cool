@@ -6,9 +6,14 @@ import { ClassroomChat } from './ClassroomChat';
 import { Face, ROLE_INFO } from './IdCard';
 import { isSchoolCast, SCHOOL_CAST } from './art';
 import { quickHire, sleepAgent, deleteAgent } from './quickHire';
-import { IconUser } from './icons';
+import { IconUser, IconBooks } from './icons';
 import { AgentPickerDialog, AgentContextMenu, AgentDeskStyles, ago, type AgentMenuState } from './AgentDesk';
 import type { Agent } from '@/store/store';
+import { patchChatSession, resetChatSession, useBusyChats } from './chatSessions';
+import { VoicePanel } from './VoicePanel';
+import { markCleared, readClearedAt } from './ClassroomChat';
+import { LibraryRoom } from './LibraryRoom';
+import { openDesk } from './deskBus';
 import brandLogo from '@brand/logo.png?url';
 
 interface Preview { text: string; ts: number }
@@ -33,42 +38,60 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
   const [wakeError, setWakeError] = useState<string | null>(null);
   const archivedAgents = useStore((s) => s.archivedAgents);
   const [menu, setMenu] = useState<AgentMenuState | null>(null);
+  const [room, setRoom] = useState(false);
+  const [voices, setVoices] = useState(false);
+  const busyIds = useBusyChats();
 
   const cast = useMemo(() => agents.filter((a) => !a.archived && isSchoolCast(a.character)), [agents]);
   const agent = cast.find((a) => a.id === selectedId) ?? null;
   const sleepingCast = useMemo(() => archivedAgents.filter((a) => isSchoolCast(a.character)), [archivedAgents]);
   const pool = useMemo(() => [...cast, ...sleepingCast], [cast, sleepingCast]);
 
+  // Rail previews: the newest thing said in either place — the quick-chat history or the agent's real terminal.
   useEffect(() => {
     let live = true;
-    void Promise.all(pool.map(async (a) => {
-      const h = await window.cth.classroomHistory(a.id).catch(() => []);
-      const last = h[h.length - 1];
-      return [a.id, last ? { text: last.text, ts: last.ts } : null] as const;
-    })).then((rows) => {
-      if (!live) return;
-      const next: Record<string, Preview> = {};
-      for (const [id, p] of rows) if (p) next[id] = p;
-      setPreviews(next);
-    });
-    return () => { live = false; };
-  }, [pool, reload, selectedId]);
+    const load = () => {
+      void Promise.all(pool.map(async (a) => {
+        const h = await window.cth.classroomHistory(a.id).catch(() => []);
+        const t = await window.cth.officeChatMessages(a.id, 1).catch(() => null);
+        const cleared = readClearedAt(a.id);
+        const cands: Preview[] = [];
+        const hl = h[h.length - 1];
+        if (hl && hl.ts > cleared) cands.push({ text: hl.text, ts: hl.ts });
+        const tl = t?.lines[t.lines.length - 1];
+        if (tl && tl.ts > cleared) cands.push({ text: tl.text.replace(/^\s*\[mood:[a-z-]+\]\s*/i, ''), ts: tl.ts });
+        cands.sort((x, y) => y.ts - x.ts);
+        return [a.id, cands[0] ?? null] as const;
+      })).then((rows) => {
+        if (!live) return;
+        const next: Record<string, Preview> = {};
+        for (const [id, p] of rows) if (p) next[id] = p;
+        setPreviews(next);
+      });
+    };
+    load();
+    const t = setInterval(load, 8000);
+    return () => { live = false; clearInterval(t); };
+  }, [pool, reload]); // not selectedId: switching chats must not re-read every history
 
   // Esc leaves focus mode (unless a modal or the terminal view owns the key).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (room || voices) return; // the library / voice panel handle their own Esc
       if (menu) { setMenu(null); return; }
       if (picking) { setPicking(false); return; }
       if (!terminal && !(e.target instanceof HTMLTextAreaElement && e.target.value)) setFullscreen(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [terminal, picking, menu, setFullscreen]);
+  }, [terminal, picking, menu, room, voices, setFullscreen]);
 
   const clearChat = useCallback(async () => {
     if (!agent) return;
     await window.cth.classroomClear(agent.id);
+    markCleared(agent.id); // the terminal transcript stays on disk; the chat just starts after this moment
+    resetChatSession(agent.id);
     setChatKey((k) => k + 1);
     setReload((r) => r + 1);
   }, [agent]);
@@ -102,6 +125,7 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
       if (kind === 'sleep') { await sleepAgent(m.agent); return; }
       if (!window.confirm(`Delete ${m.agent.name} for good? Their notes and chat history go with them.`)) return;
       await window.cth.classroomClear(m.agent.id).catch(() => undefined);
+      resetChatSession(m.agent.id);
       await deleteAgent(m.agent);
       setReload((r) => r + 1);
     } catch (err) {
@@ -151,6 +175,10 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
               style={{ width: '100%', border: 'none', cursor: 'pointer', padding: '9px 12px', borderRadius: 12, background: 'var(--cth-ink-900)', color: 'var(--cth-paper-100)', fontSize: 14, fontWeight: 600 }}>
               + New chat
             </button>
+            <button type="button" onClick={() => setRoom(true)}
+              style={{ width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', padding: '8px 12px', borderRadius: 12, background: 'var(--cth-lilac-light)', color: 'var(--cth-ink-900)', fontSize: 14, fontWeight: 600, boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)' }}>
+              <IconBooks size={18} /> Visit the Library
+            </button>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats"
               style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, padding: '8px 10px', borderRadius: 10, border: 'none', background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)', color: 'var(--cth-ink-900)', fontSize: 13, outline: 'none' }} />
           </div>
@@ -169,7 +197,7 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cth-ink-900)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{asleep ? 'asleep' : ago(p.ts)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{asleep ? 'asleep' : busyIds.split(',').includes(a.id) ? 'typing…' : ago(p.ts)}</span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--cth-ink-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.text.replace(/\s+/g, ' ')}
@@ -199,6 +227,12 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
               <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{role?.title} · {role?.tagline}</div>
             </div>
             <span style={{ flex: 1 }} />
+            {agent.character === 'librarian' && (
+              <button type="button" onClick={openDesk}
+                style={{ border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 10, background: 'var(--cth-lilac-light)', color: 'var(--cth-ink-900)', fontSize: 12, fontWeight: 600 }}>Desk — files</button>
+            )}
+            <button type="button" onClick={() => setVoices(true)} title="Voices — let the characters speak (ElevenLabs)"
+              style={{ border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 10, background: 'var(--cth-cream-200)', color: 'var(--cth-ink-900)', fontSize: 12 }}>🔊 Voices</button>
             <button type="button" onClick={() => { void clearChat(); }}
               style={{ border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 10, background: 'var(--cth-cream-200)', color: 'var(--cth-ink-900)', fontSize: 12 }}>Clear chat</button>
             <button type="button" onClick={() => setTerminal(true)}
@@ -208,6 +242,21 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
         </main>
       </div>
       <AgentDeskStyles />
+      {voices && <VoicePanel onClose={() => setVoices(false)} />}
+      {room && (
+        <LibraryRoom
+          librarian={cast.find((a) => a.character === 'librarian') ?? null}
+          onLeave={() => setRoom(false)}
+          onOpenDesk={openDesk}
+          onAskLibrarian={(prefill) => {
+            const l = cast.find((a) => a.character === 'librarian');
+            setRoom(false);
+            if (!l) return;
+            if (prefill) patchChatSession(l.id, { text: prefill });
+            setFullscreen(l.id);
+          }}
+        />
+      )}
       {menu && (
         <AgentContextMenu menu={menu} leaderNote="Leads the school — can't sleep or be deleted."
           onClose={() => setMenu(null)} onAction={(k) => void runMenuAction(k)} />
