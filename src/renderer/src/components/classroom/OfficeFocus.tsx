@@ -233,7 +233,7 @@ export function OfficeFocus({ config }: { config?: HarnessConfig | null }) {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', borderRadius: 18, overflow: 'hidden', background: 'var(--cth-cream-50)', boxShadow: '0 12px 40px rgba(26,19,32,0.18), inset 0 0 0 1px var(--cth-ink-100)' }}>
         <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--cth-cream-100)', borderRight: '1px solid var(--cth-ink-100)', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 8px' }}>
-            <img src={brandLogo} alt="Jargon" style={{ height: 26, width: 'auto' }} />
+            <img src={brandLogo} alt="IsCool" style={{ height: 26, width: 'auto' }} />
             <strong style={{ fontSize: 16, color: 'var(--cth-ink-900)' }}>Office</strong>
           </div>
           <div style={{ padding: '4px 16px 8px' }}>

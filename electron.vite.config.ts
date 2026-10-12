@@ -33,7 +33,7 @@ function copyMainSidecars() {
     ['src/main/kg-core.cjs', 'out/main/kg-core.cjs'],
     // Jargon mark: read at runtime by src/main/teaching.ts for the hosted
     // classroom window's icon + the embedded loading-page logo.
-    ['docs/logo.png', 'out/main/logo.png']
+    ['reference/logo.png', 'out/main/logo.png']
   ];
   return {
     name: 'copy-main-cjs-sidecars',
@@ -83,7 +83,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),
-        '@brand': resolve(__dirname, 'docs'),
+        '@brand': resolve(__dirname, 'reference'),
         '@shared': resolve(__dirname, 'src/shared')
       }
     }

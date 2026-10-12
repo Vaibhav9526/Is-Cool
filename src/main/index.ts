@@ -2405,6 +2405,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
     title: isFloor ? 'IsCool — Floor' : 'IsCool',
+    icon: join(__dirname, 'logo.png'),
     backgroundColor: '#FFF8E7',
     // macOS: traffic lights inset into our bar. Windows: drop the system title bar
     // and menu strip entirely — the window buttons are drawn as an overlay on top

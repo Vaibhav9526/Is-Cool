@@ -143,7 +143,7 @@ export function ClassroomFocus({ config }: { config?: HarnessConfig | null }) {
         {/* Left rail — every chat */}
         <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--cth-cream-100)', borderRight: '1px solid var(--cth-ink-100)', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 8px' }}>
-            <img src={brandLogo} alt="Jargon" style={{ height: 26, width: 'auto' }} />
+            <img src={brandLogo} alt="IsCool" style={{ height: 26, width: 'auto' }} />
             <strong style={{ fontSize: 16, color: 'var(--cth-ink-900)' }}>Classroom</strong>
           </div>
           <div style={{ padding: '4px 16px 8px' }}>

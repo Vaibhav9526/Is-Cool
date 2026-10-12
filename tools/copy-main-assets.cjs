@@ -10,7 +10,7 @@ const MAIN_ASSETS = [
   ['src/main/kg-core.cjs', 'out/main/kg-core.cjs'],
   // Jargon mark — src/main/teaching.ts reads __dirname/logo.png for the
   // classroom window icon + embedded loading page.
-  ['docs/logo.png', 'out/main/logo.png'],
+  ['reference/logo.png', 'out/main/logo.png'],
 ];
 
 for (const [fromRel, toRel] of MAIN_ASSETS) {

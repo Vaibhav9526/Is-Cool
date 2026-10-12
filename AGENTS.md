@@ -2,6 +2,12 @@
 
 IsCool is the School-only port of Jargon (Office, Tapri, Mail, Spectator and the Office/School switch were removed; the floor is locked to the staffroom theme, auto-update is off, URL scheme is iscool://). The notes below were inherited from Jargon; sections about Tapri, Spectator, releasing and auto-update do not apply.
 
+## IsCool branding
+
+- The original app logo lives in `reference/logo.png` and `reference/logo.svg`; keep both unchanged. The renderer's `@brand` alias and the README use `reference/`, and both main-asset copy paths emit the PNG as `out/main/logo.png`.
+- Regenerate desktop packaging icons with `node tools/build-brand-assets.cjs`. Do not use the inherited `tools/make-logo.cjs` for IsCool: it generates the old Jargon assets.
+- Branding checks: `node --test test/iscool-branding.test.cjs`.
+
 ## Running this app (Windows)
 
 - `npm install` fails on this machine: Node 25's headers ship `clang: 1` and the
